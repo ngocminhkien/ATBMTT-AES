@@ -7,10 +7,8 @@ import os
 import io
 
 app = Flask(__name__)
-# Đặt SECRET_KEY cho Flask session. RẤT QUAN TRỌNG cho bảo mật session.
-# Sử dụng os.urandom(24) để tạo khóa ngẫu nhiên, thay thế bằng khóa tĩnh trong môi trường production.
-app.secret_key = os.urandom(24)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
+app.secret_key = os.urandom(24) # RẤT QUAN TRỌNG cho bảo mật session.
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # Tăng giới hạn upload lên 50 MB cho ảnh lớn
 
 # Hàm chuyển đổi mật khẩu thành khóa AES 256-bit
 def derive_key(password: str) -> bytes:
@@ -70,11 +68,15 @@ def perform_encrypt():
         ciphertext = cipher.encrypt(padded_data)
         encrypted_data_bytes = iv + ciphertext
 
+        # Giữ phần mở rộng gốc của file ảnh để có thể gợi ý khi giải mã
+        original_extension = os.path.splitext(file.filename)[1]
         encrypted_filename = file.filename + '.aes'
-
+        
         # Lưu dữ liệu đã mã hóa và tên file vào session
         session['encrypted_data'] = encrypted_data_bytes
         session['encrypted_filename'] = encrypted_filename
+        # Lưu phần mở rộng gốc để dùng khi giải mã
+        session['original_extension'] = original_extension
 
         flash('File encrypted successfully! You can now download it.', 'success')
         return render_template('encrypt.html', show_download=True, filename=encrypted_filename)
@@ -114,11 +116,25 @@ def perform_decrypt():
         decrypted_padded_data = cipher.decrypt(ciphertext)
         original_data_bytes = unpad(decrypted_padded_data, AES.block_size)
 
+        # Khôi phục tên file gốc và phần mở rộng
         original_filename = file.filename
         if original_filename.endswith('.aes'):
-            original_filename = original_filename[:-4] # Remove .aes extension
+            # Cố gắng lấy phần mở rộng gốc từ session (nếu có từ quá trình mã hóa)
+            # Hoặc loại bỏ '.aes' và để lại phần mở rộng nếu có
+            name_without_aes = original_filename[:-4]
+            # Kiểm tra session trước để ưu tiên phần mở rộng đã lưu
+            if 'original_extension' in session and session['original_extension']:
+                original_filename = name_without_aes + session['original_extension']
+                session.pop('original_extension', None) # Xóa sau khi dùng
+            else:
+                # Nếu không có trong session, cố gắng lấy phần mở rộng từ tên file trước khi mã hóa
+                # (ví dụ: my_image.jpg.aes -> my_image.jpg)
+                base_name, _ = os.path.splitext(name_without_aes)
+                original_filename = name_without_aes if not _ else f"{base_name}{_}"
+
         else:
-            # Fallback for files without .aes extension, append _decrypted
+            # Nếu file không có '.aes' (người dùng upload file không phải .aes),
+            # thêm đuôi _decrypted để tránh trùng tên nếu là file gốc.
             name, ext = os.path.splitext(file.filename)
             original_filename = f"{name}_decrypted{ext}"
 
@@ -133,13 +149,7 @@ def perform_decrypt():
     except ValueError as e:
         # Lỗi giải mã do sai mật khẩu hoặc file bị hỏng
         flash(f'Decryption failed: Incorrect password or corrupted file. Please try again.', 'error')
-        # Khi giải mã sai, người dùng vẫn ở trang giải mã và file đã upload vẫn được giữ
-        # trong form (nếu browser hỗ trợ) hoặc có thể upload lại dễ dàng.
-        # Dữ liệu `file.read()` đã được xử lý, không cần lưu lại file trên server.
-        # Người dùng sẽ cần chọn lại file nếu trình duyệt không tự nhớ.
-        # Để giữ lại file đã upload, bạn sẽ cần một cơ chế lưu file tạm thời trên server.
-        # Ở đây, chúng ta chỉ giữ lại thông báo lỗi và không mất trạng thái tải xuống.
-        return render_template('decrypt.html', last_uploaded_filename=file.filename)
+        return render_template('decrypt.html')
     except Exception as e:
         flash(f'Decryption failed: An unexpected error occurred. ({e})', 'error')
         return redirect(url_for('show_decrypt_page'))
@@ -152,11 +162,11 @@ def download_encrypted():
     encrypted_filename = session.get('encrypted_filename', 'encrypted_file.aes')
 
     if encrypted_data:
-        # Xóa dữ liệu khỏi session sau khi tải xuống để giải phóng bộ nhớ
         session.pop('encrypted_data', None)
         session.pop('encrypted_filename', None)
+        session.pop('original_extension', None) # Đảm bảo dọn dẹp session
         return send_file(io.BytesIO(encrypted_data),
-                         mimetype='application/octet-stream',
+                         mimetype='application/octet-stream', # Mime type chung cho binary data
                          as_attachment=True,
                          download_name=encrypted_filename)
     else:
@@ -169,17 +179,17 @@ def download_decrypted():
     decrypted_filename = session.get('decrypted_filename', 'decrypted_file')
 
     if decrypted_data:
-        # Xóa dữ liệu khỏi session sau khi tải xuống để giải phóng bộ nhớ
         session.pop('decrypted_data', None)
         session.pop('decrypted_filename', None)
         return send_file(io.BytesIO(decrypted_data),
-                         mimetype='application/octet-stream',
+                         mimetype='application/octet-stream', # Flask thường tự động nhận diện mimetype nếu tên file đúng
                          as_attachment=True,
                          download_name=decrypted_filename)
     else:
         flash('No decrypted file available for download. Please decrypt a file first.', 'error')
         return redirect(url_for('show_decrypt_page'))
 
-if __name__ == '__main__':
-    # Đặt debug=False trong môi trường production để bảo mật
+#if __name__ == '__main__':
     app.run(debug=True)
+if __name__ == '__main__':
+    app.run(debug=True, port=5001) # Chạy trên cổng 5001

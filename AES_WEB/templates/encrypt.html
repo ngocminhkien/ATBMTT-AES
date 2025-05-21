@@ -24,9 +24,9 @@
         <div class="section">
             <form action="{{ url_for('perform_encrypt') }}" method="post" enctype="multipart/form-data">
                 <div class="form-group">
-                    <label for="encryptFile"><i class="fas fa-folder-open"></i> Select File:</label>
-                    <input type="file" id="encryptFile" name="file" required>
-                </div>
+                    <label for="encryptFile"><i class="fas fa-folder-open"></i> Select File (e.g., .txt, .jpg, .png):</label>
+                    <input type="file" id="encryptFile" name="file" accept=".txt, .jpg, .jpeg, .png, .gif, .bmp, .pdf, .docx, .xlsx" required>
+                    </div>
                 <div class="form-group">
                     <label for="encryptPassword"><i class="fas fa-key"></i> Password:</label>
                     <input type="password" id="encryptPassword" name="password" required>
