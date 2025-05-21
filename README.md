@@ -10,7 +10,7 @@
 # Giao diện 
 <p align ="center">
   <img src="tt.gif"  width="400" />
-  <img src="tt.gif"  width="400" />
-  <img src="tt.gif"  width="400" />
+  <img src="En.gif"  width="400" />
+  <img src="De.gif"  width="400" />
 </p>
 
