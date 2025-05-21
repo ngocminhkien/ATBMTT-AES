@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encrypt File - AES Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container form-container">
+        <h1><i class="fas fa-file-export"></i> Encrypt File</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="{{ category }}"><i class="fas {% if category == 'success' %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %}"></i> {{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        <div class="section">
+            <form action="{{ url_for('perform_encrypt') }}" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="encryptFile"><i class="fas fa-folder-open"></i> Select File:</label>
+                    <input type="file" id="encryptFile" name="file" required>
+                </div>
+                <div class="form-group">
+                    <label for="encryptPassword"><i class="fas fa-key"></i> Password:</label>
+                    <input type="password" id="encryptPassword" name="password" required>
+                </div>
+                <button type="submit" class="btn primary-btn"><i class="fas fa-lock"></i> Encrypt File</button>
+            </form>
+
+            {% if show_download %}
+                <div class="download-section">
+                    <p>Encryption complete! Click to download your file:</p>
+                    <a href="{{ url_for('download_encrypted') }}" class="btn download-btn"><i class="fas fa-download"></i> Download Encrypted File ({{ filename }})</a>
+                </div>
+            {% endif %}
+        </div>
+        <p><a href="{{ url_for('home') }}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Home</a></p>
+    </div>
+</body>
+</html>
